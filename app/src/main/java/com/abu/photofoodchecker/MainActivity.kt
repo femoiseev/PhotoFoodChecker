@@ -13,8 +13,13 @@ import org.jetbrains.anko.*
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Environment
+import android.support.v4.content.FileProvider
+import com.abu.photofoodchecker.android.ResultsActivity
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 
 
 class MainActivity : Activity() {
@@ -41,6 +46,7 @@ class MainActivity : Activity() {
                             if (takePictureIntent.resolveActivity(packageManager) != null) {
                                 activity.startActivityForResult(takePictureIntent, TAKE_PICTURE)
                             }
+
                         }
                     }
                 }
@@ -104,46 +110,27 @@ class MainActivity : Activity() {
             return
 
         if (requestCode == TAKE_PICTURE || requestCode == SELECT_FILE) {
-            val imageUri : Uri = when (requestCode) {
-                TAKE_PICTURE ->  getOutputMediaFileUri()
-                SELECT_FILE -> data.data
-                else -> Uri.EMPTY
+            val imageFilePath: String = when (requestCode) {
+                TAKE_PICTURE -> {
+                    val kek = data.data
+                    getOutputMediaFileUri().path
+                }
+                SELECT_FILE -> getRealPathFromURI(data.data)
+                else -> ""
             }
 
-            val intent = Intent("com.android.camera.action.CROP")
-            intent.setDataAndType(imageUri, "image/*")
-            intent.putExtra("crop", "true")
-            intent.putExtra("aspectX", 1)
-            intent.putExtra("aspectY", 1)
-            intent.putExtra("outputX", 256)
-            intent.putExtra("outputY", 256)
-            intent.putExtra("noFaceDetection", true)
-            intent.putExtra("return-data", true)
-            startActivityForResult(intent, CROP_PICTURE)
-        } else if (requestCode == CROP_PICTURE) {
-            deleteFile(resultUrl)
-
-            val extras = data.extras
-            val picture = extras.getParcelable<Bitmap>("data")
-            val imageFilePath = getOutputMediaFile()?.getPath()
-            try {
-                val out = FileOutputStream(imageFilePath)
-                picture?.compress(Bitmap.CompressFormat.PNG, 100, out)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-
-
-            val results = intentFor<AnalysisResultActivity>("IMAGE_PATH" to imageFilePath,
-                    "RESULT_PATH" to resultUrl)
+            val results = Intent(this, AnalysisResultActivity::class.java)
+            results.putExtra("IMAGE_PATH", imageFilePath)
+            results.putExtra("RESULT_PATH", resultUrl)
             startActivity(results)
+
         }
     }
 
     private fun getOutputMediaFile(): File? {
 
         val mediaStorageDir = File(Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_PICTURES), "ABBYY Cloud OCR SDK Demo App")
+                Environment.DIRECTORY_PICTURES), "photofoodchecker")
 
         if (!mediaStorageDir.exists()) {
             if (!mediaStorageDir.mkdirs()) {
@@ -151,10 +138,21 @@ class MainActivity : Activity() {
             }
         }
 
-        return File(mediaStorageDir.path + File.separator + "image.jpg")
+        val file = File(mediaStorageDir.path + File.separator + "image.jpg")
+
+        return file
     }
 
     private fun getOutputMediaFileUri(): Uri {
         return Uri.fromFile(getOutputMediaFile())
+    }
+
+    fun getRealPathFromURI(uri: Uri): String {
+        val cursor = contentResolver.query(uri, null, null, null, null)
+        cursor!!.moveToFirst()
+        val idx = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA)
+        val result = cursor.getString(idx)
+        cursor.close()
+        return result
     }
 }

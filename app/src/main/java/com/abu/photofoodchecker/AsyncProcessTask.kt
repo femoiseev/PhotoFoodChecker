@@ -5,14 +5,11 @@ import android.app.ProgressDialog
 import com.abu.photofoodchecker.ocrsdk.Client
 import com.abu.photofoodchecker.ocrsdk.ProcessingSettings
 import com.abu.photofoodchecker.ocrsdk.Task
-import com.abu.photofoodchecker.match
 
-import android.content.Context
 import android.os.AsyncTask
 import java.io.ByteArrayOutputStream
-import java.io.File
 
-class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask<String, String, String>() {
+class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask<String, String, List<Additive>>() {
 
     private val dialog: ProgressDialog = ProgressDialog(activity)
 
@@ -23,7 +20,7 @@ class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask
         dialog.show()
     }
 
-    override fun onPostExecute(result: String) {
+    override fun onPostExecute(result: List<Additive>) {
         if (dialog.isShowing) {
             dialog.dismiss()
         }
@@ -31,7 +28,7 @@ class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask
         activity.updateResults(result)
     }
 
-    override fun doInBackground(vararg args: String): String {
+    override fun doInBackground(vararg args: String): List<Additive> {
 
         val inputFile = args[0]
         val outputFile = args[1]
@@ -50,15 +47,13 @@ class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask
             // You should get e-mail from ABBYY Cloud OCR SDK service with the application password
             restClient.password = "ewIYzp+Jnt9W5Mni7j4fRZQ+"
 
-            publishProgress("Uploading image...")
+            publishProgress("Загрузка изображения...")
 
             val language = "Russian" // Comma-separated list: Japanese,English or German,French,Spanish etc.
 
             val processingSettings = ProcessingSettings()
             processingSettings.outputFormat = ProcessingSettings.OutputFormat.txt
             processingSettings.language = language
-
-            publishProgress("Uploading..")
 
             // If you want to process business cards, uncomment this
             /*
@@ -79,34 +74,27 @@ class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask
                 // at http://ocrsdk.com/documentation/apireference/listFinishedTasks/).
 
                 Thread.sleep(5000)
-                publishProgress("Recognizing..")
+                publishProgress("Распознавание...")
                 task = restClient.getTaskStatus(task.Id)
             }
 
             if (task.Status == Task.TaskStatus.Completed) {
-                publishProgress("Downloading...")
+                publishProgress("Скачивание...")
 
                 //val fos = activity.openFileOutput(outputFile, Context.MODE_PRIVATE)
                 val baos = ByteArrayOutputStream()
 
                 var recognitionResult : String = ""
-                baos.use { baos ->
+                baos.use {
                     restClient.downloadResult(task, baos)
                     recognitionResult = baos.toString()
                 }
 
-                publishProgress("Analyzing...")
+                publishProgress("Анализ...")
                 val eNames = getAdditions(activity.applicationContext)
                 val components = getComponents(recognitionResult)
 
-                val text: StringBuilder = StringBuilder()
-                for (component in components) {
-                    val (e, score) = getECode(eNames, component)
-                    if (score > 90) {
-                        text.append("Matched «$component» to $e (${eNames[e]}) with score $score\n")
-                    }
-                }
-                return text.toString()
+                return match(components, eNames)
             } else if (task.Status == Task.TaskStatus.NotEnoughCredits) {
                 throw Exception("Not enough credits to process task. Add more pages to your application's account.")
             } else {
@@ -115,8 +103,7 @@ class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask
         } catch (e: Exception) {
             val message = "Error: " + e.message
             publishProgress(message)
-            activity.displayMessage(message)
-            return ""
+            return emptyList()
         }
 
     }
@@ -125,6 +112,5 @@ class AsyncProcessTask(private val activity: AnalysisResultActivity) : AsyncTask
         // TODO Auto-generated method stub
         val stage = values[0]
         dialog.setMessage(stage)
-        // dialog.setProgress(values[0]);
     }
 }

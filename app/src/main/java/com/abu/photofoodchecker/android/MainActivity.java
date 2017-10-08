@@ -15,6 +15,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.view.View;
 
+import com.abu.photofoodchecker.AnalysisResultActivity;
 import com.abu.photofoodchecker.R;
 
 public class MainActivity extends Activity {
@@ -97,6 +98,10 @@ public class MainActivity extends Activity {
             switch (requestCode) {
                 case TAKE_PICTURE:
                     imageUri = getOutputMediaFileUri();
+                    Intent results = new Intent( this, ResultsActivity.class);
+                    results.putExtra("IMAGE_PATH", imageUri.getPath());
+                    results.putExtra("RESULT_PATH", resultUrl);
+                    startActivity(results);
                     break;
                 case SELECT_FILE:
                     imageUri = data.getData();
